@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ai-image-generator
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLUX_API_KEY
+        sync: false
+    plan: free
