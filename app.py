@@ -29,28 +29,43 @@ def get_common_headers():
     }
 
 def check_generation_status(request_id, max_attempts=20):
-    headers = get_common_headers()
-    attempt = 0
+    """Vérifie le statut de la génération d'image."""
+    logger.info(f"Checking status for request_id: {request_id}")
     
-    while attempt < max_attempts:
+    for attempt in range(max_attempts):
         try:
+            logger.info(f"Status check attempt {attempt + 1}/{max_attempts}")
             response = requests.get(
-                f"https://api.bfl.ml/v1/get_result?id={request_id}",
-                headers=headers
+                f"{FLUX_RESULT_URL}/{request_id}",
+                headers=get_common_headers()
             )
             
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('status') == 'Ready':
-                    return data.get('result', {}).get('sample')
+            logger.info(f"Status response: {response.status_code} - {response.text}")
             
-            attempt += 1
-            time.sleep(0.5)
+            if response.status_code == 200:
+                result = response.json()
+                status = result.get('status', '').lower()
+                
+                logger.info(f"Status: {status}")
+                
+                if status == 'ready':
+                    image_url = result.get('image')
+                    if image_url:
+                        logger.info(f"Image URL found: {image_url}")
+                        return image_url
+                    logger.warning("Status ready but no image URL found")
+                    
+            elif response.status_code != 404:
+                logger.error(f"Unexpected status code: {response.status_code}")
+                break
+                
+            time.sleep(1.5)
             
         except Exception as e:
             logger.error(f"Error checking status: {str(e)}")
-            time.sleep(0.5)
-    
+            time.sleep(1.5)
+            
+    logger.error("Max attempts reached without success")
     return None
 
 @app.route('/')
@@ -63,6 +78,8 @@ def generate_image():
         data = request.get_json()
         prompt = data.get('prompt', '')
         seed = data.get('seed', random.randint(1000, 9999))
+
+        logger.info(f"Starting generation with prompt: {prompt}, seed: {seed}")
 
         if not prompt:
             return jsonify({'error': 'Prompt manquant'}), 400
@@ -77,7 +94,11 @@ def generate_image():
             'seed': seed
         }
 
+        logger.info(f"Sending request to API with payload: {payload}")
         response = requests.post(FLUX_API_URL, headers=headers, json=payload)
+        
+        logger.info(f"API Response status: {response.status_code}")
+        logger.info(f"API Response content: {response.text}")
         
         if response.status_code != 200:
             return jsonify({'error': f'Erreur API: {response.text}'}), response.status_code
@@ -86,7 +107,9 @@ def generate_image():
         if not request_id:
             return jsonify({'error': 'ID de requête manquant'}), 400
 
+        logger.info(f"Got request_id: {request_id}, checking status...")
         image_url = check_generation_status(request_id)
+        
         if not image_url:
             return jsonify({'error': 'Échec de la génération'}), 500
 
@@ -94,7 +117,7 @@ def generate_image():
             'image': image_url,
             'seed': seed
         }
-        logger.info(f"Sending response with seed: {seed}")
+        logger.info(f"Success! Sending response: {response_data}")
         return jsonify(response_data)
 
     except Exception as e:
