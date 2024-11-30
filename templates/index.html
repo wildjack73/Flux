@@ -328,7 +328,7 @@
             document.getElementById('loading-container').style.display = 'none';
         }
 
-        generateBtn.addEventListener('click', async () => {
+        async function generateImage() {
             const promptText = prompt.value.trim();
             const seedValue = seed.value.trim();
 
@@ -337,79 +337,56 @@
                 return;
             }
 
-            // Reset UI
-            showStatus('Génération en cours...', 'info');
-            showLoading('Création de l\'image...');
+            showLoading();
             updateProgress(0);
-            document.getElementById('generated-image').style.display = 'none';
-            document.getElementById('image-container').style.display = 'none';
-            document.getElementById('result-container').style.display = 'none';
-
-            const payload = {
-                prompt: promptText
-            };
-
-            if (seedValue) {
-                try {
-                    const seedNum = parseInt(seedValue);
-                    if (seedNum >= 1000 && seedNum <= 9999) {
-                        payload.seed = seedNum;
-                    } else {
-                        hideLoading();
-                        showStatus('Le seed doit être entre 1000 et 9999', 'error');
-                        return;
-                    }
-                } catch {
-                    hideLoading();
-                    showStatus('Le seed doit être un nombre valide', 'error');
-                    return;
-                }
-            }
 
             try {
-                fetch('/generate', {
+                const response = await fetch('/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(payload)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log("Received data:", data); // Debug log
-                    
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-
-                    const imageContainer = document.querySelector('.image-container');
-                    const generatedImage = document.getElementById('generated-image');
-                    const downloadImageBtn = document.getElementById('download-image');
-                    const resultContainer = document.getElementById('result-container');
-                    const seedInfo = document.getElementById('seed-info');
-                    const seedValue = document.getElementById('seed-value');
-
-                    generatedImage.src = data.image;
-                    downloadImageBtn.href = `/download-image?url=${encodeURIComponent(data.image)}&prompt=${encodeURIComponent(promptText)}`;
-                    
-                    if (data.seed) {
-                        seedValue.textContent = data.seed;
-                        seedInfo.style.display = 'block';
-                    }
-                    
-                    imageContainer.style.display = 'block';
-                    resultContainer.style.display = 'block';
-                    generatedImage.style.display = 'block';
-
-                    showStatus('Image générée avec succès !', 'success');
-                    updateProgress(100);
+                    body: JSON.stringify({ prompt: promptText })
                 });
+
+                const data = await response.json();
+                console.log("Received data:", data);
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const imageContainer = document.querySelector('.image-container');
+                const generatedImage = document.getElementById('generated-image');
+                const downloadImageBtn = document.getElementById('download-image');
+                const resultContainer = document.getElementById('result-container');
+                const seedInfo = document.getElementById('seed-info');
+                const seedValueElement = document.getElementById('seed-value');
+
+                generatedImage.src = data.image;
+                downloadImageBtn.href = `/download-image?url=${encodeURIComponent(data.image)}&prompt=${encodeURIComponent(promptText)}`;
+                
+                if (data.seed) {
+                    seedValueElement.textContent = data.seed;
+                    seedInfo.style.display = 'block';
+                }
+                
+                imageContainer.style.display = 'block';
+                resultContainer.style.display = 'block';
+                generatedImage.style.display = 'block';
+
+                hideLoading();
+                showStatus('Image générée avec succès !', 'success');
+                updateProgress(100);
+
             } catch (error) {
                 hideLoading();
                 showStatus('Erreur lors de la génération : ' + error.message, 'error');
                 updateProgress(0);
             }
-        });
+        }
+
+        generateBtn.addEventListener('click', generateImage);
     </script>
 </body>
 </html>
