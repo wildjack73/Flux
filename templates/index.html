@@ -367,21 +367,21 @@
             }
 
             try {
-                const response = await fetch('/generate', {
+                fetch('/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(payload)
-                });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Received data:", data); // Debug log
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
 
-                const data = await response.json();
-                hideLoading();
-
-                if (data.error) {
-                    showStatus(data.error, 'error');
-                    updateProgress(0);
-                } else {
                     const imageContainer = document.querySelector('.image-container');
                     const generatedImage = document.getElementById('generated-image');
                     const downloadImageBtn = document.getElementById('download-image');
@@ -391,16 +391,19 @@
 
                     generatedImage.src = data.image;
                     downloadImageBtn.href = `/download-image?url=${encodeURIComponent(data.image)}&prompt=${encodeURIComponent(promptText)}`;
-                    seedValue.textContent = data.seed;
+                    
+                    if (data.seed) {
+                        seedValue.textContent = data.seed;
+                        seedInfo.style.display = 'block';
+                    }
                     
                     imageContainer.style.display = 'block';
                     resultContainer.style.display = 'block';
                     generatedImage.style.display = 'block';
-                    seedInfo.style.display = 'block';
 
                     showStatus('Image générée avec succès !', 'success');
                     updateProgress(100);
-                }
+                });
             } catch (error) {
                 hideLoading();
                 showStatus('Erreur lors de la génération : ' + error.message, 'error');

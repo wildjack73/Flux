@@ -90,10 +90,12 @@ def generate_image():
         if not image_url:
             return jsonify({'error': 'Échec de la génération'}), 500
 
-        return jsonify({
+        response_data = {
             'image': image_url,
             'seed': seed
-        })
+        }
+        logger.info(f"Sending response with seed: {seed}")
+        return jsonify(response_data)
 
     except Exception as e:
         logger.error(f"Erreur lors de la génération: {str(e)}")
