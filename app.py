@@ -60,78 +60,44 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate_image():
     try:
-        data = request.json
-        if not data or 'prompt' not in data:
-            return jsonify({'error': 'Prompt requis'}), 400
-            
-        prompt = data['prompt']
-        seed = data.get('seed')
+        data = request.get_json()
+        prompt = data.get('prompt', '')
+        seed = data.get('seed', random.randint(1000, 9999))
+
+        if not prompt:
+            return jsonify({'error': 'Prompt manquant'}), 400
+
+        headers = get_common_headers()
+        payload = {
+            'prompt': prompt,
+            'width': 1024,
+            'height': 768,
+            'prompt_upsampling': False,
+            'safety_tolerance': 2,
+            'seed': seed
+        }
+
+        response = requests.post(FLUX_API_URL, headers=headers, json=payload)
         
-        logger.info(f"Starting generation with prompt: {prompt}")
-        
-        try:
-            # Configuration de l'API Flux
-            headers = get_common_headers()
-            
-            # Préparation des données
-            payload = {
-                'prompt': prompt,
-                'width': 1024,
-                'height': 768,
-                'prompt_upsampling': False,
-                'safety_tolerance': 2,
-                'seed': seed if seed is not None else random.randint(1000, 9999),
-                'negative_prompt': 'blurry, bad quality, worst quality, low quality, deformed, distorted, disfigured'
-            }
-            
-            # Envoi de la requête
-            logger.info("Envoi de la requête à Flux...")
-            logger.info(f"Payload: {payload}")
-            
-            response = requests.post(
-                FLUX_API_URL,
-                headers=headers,
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"API error response: {response.text}")
-                return jsonify({'error': 'Erreur lors de la génération'}), response.status_code
-                
-            result = response.json()
-            request_id = result.get('id')
-            
-            if not request_id:
-                return jsonify({'error': 'ID de requête manquant dans la réponse'}), 500
-                
-            # Vérification du statut
-            image_url = check_generation_status(request_id)
-            
-            if not image_url:
-                return jsonify({'error': 'Timeout lors de la génération de l\'image'}), 500
-                
-            return jsonify({
-                'status': 'completed',
-                'image': image_url,
-                'seed': payload.get('seed', 'aléatoire')
-            })
-            
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Erreur de communication avec Flux: {str(e)}"
-            logger.error(error_msg)
-            return jsonify({'error': error_msg}), 500
-            
-        except Exception as e:
-            error_msg = f"Erreur lors de la génération de l'image: {str(e)}"
-            logger.error(error_msg)
-            logger.exception("Stack trace complète:")
-            return jsonify({'error': error_msg}), 500
-            
+        if response.status_code != 200:
+            return jsonify({'error': f'Erreur API: {response.text}'}), response.status_code
+
+        request_id = response.json().get('request_id')
+        if not request_id:
+            return jsonify({'error': 'ID de requête manquant'}), 400
+
+        image_url = check_generation_status(request_id)
+        if not image_url:
+            return jsonify({'error': 'Échec de la génération'}), 500
+
+        return jsonify({
+            'image': image_url,
+            'seed': seed
+        })
+
     except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error in generation: {error_msg}")
-        logger.exception("Stack trace complète:")
-        return jsonify({'error': error_msg}), 500
+        logger.error(f"Erreur lors de la génération: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/download-image')
 def download_image():
