@@ -12,7 +12,7 @@ load_dotenv()
 # Configuration
 FLUX_API_KEY = os.getenv('FLUX_API_KEY')
 FLUX_API_URL = "https://api.bfl.ml/v1/flux-pro-1.1"
-FLUX_RESULT_URL = "https://api.bfl.ml/v1/result"
+FLUX_RESULT_URL = "https://api.bfl.ml/v1/get_result"
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +36,7 @@ def check_generation_status(request_id, max_attempts=20):
         try:
             logger.info(f"Status check attempt {attempt + 1}/{max_attempts}")
             response = requests.get(
-                f"{FLUX_RESULT_URL}/{request_id}",
+                f"{FLUX_RESULT_URL}?id={request_id}",
                 headers=get_common_headers()
             )
             
@@ -49,7 +49,7 @@ def check_generation_status(request_id, max_attempts=20):
                 logger.info(f"Status: {status}")
                 
                 if status == 'ready':
-                    image_url = result.get('image')
+                    image_url = result.get('result', {}).get('sample')
                     if image_url:
                         logger.info(f"Image URL found: {image_url}")
                         return image_url
@@ -103,7 +103,16 @@ def generate_image():
         if response.status_code != 200:
             return jsonify({'error': f'Erreur API: {response.text}'}), response.status_code
 
-        request_id = response.json().get('request_id')
+        response_json = response.json()
+        logger.info(f"API Response JSON: {response_json}")
+        
+        # Essayer d'obtenir l'ID de différentes façons possibles
+        request_id = (response_json.get('request_id') or 
+                     response_json.get('id') or 
+                     response_json.get('requestId'))
+                     
+        logger.info(f"Extracted request_id: {request_id}")
+
         if not request_id:
             return jsonify({'error': 'ID de requête manquant'}), 400
 
